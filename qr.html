@@ -1,0 +1,924 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Officer Terminal - Barcode Attendance</title>
+
+    <!-- Google Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Bruno+Ace+SC&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+    <!-- HTML5 QR / Barcode Scanner Engine -->
+    <script src="https://unpkg.com/html5-qrcode"></script>
+
+    <!-- Firebase SDK (Modular) -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/12.19.0/firebase-app.js";
+        import { 
+            getFirestore, 
+            doc, 
+            getDoc, 
+            setDoc, 
+            collection, 
+            query, 
+            where, 
+            getDocs 
+        } from "https://www.gstatic.com/firebasejs/12.19.0/firebase-firestore.js";
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyBr3edgEsbNlRNSUj7-9EkCvYpKGAA15vw",
+            authDomain: "ab-scan-9809d.firebaseapp.com",
+            projectId: "ab-scan-9809d",
+            storageBucket: "ab-scan-9809d.firebasestorage.app",
+            messagingSenderId: "600522254783",
+            appId: "1:600522254783:web:6d0c1a27eb0cc67d7c190a",
+            measurementId: "G-2238JSVET0"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        window.firebaseDB = getFirestore(app);
+        window.fs = { doc, getDoc, setDoc, collection, query, where, getDocs };
+    </script>
+
+    <style>
+        :root[data-theme="dark"] {
+            --primary-red: #e61e32;
+            --main-bg: #090c13;
+            --card-surface: rgba(16, 21, 32, 0.92);
+            --border-subtle: rgba(255, 255, 255, 0.1);
+            --text-primary: #ffffff;
+            --text-dim: #9aa3b2;
+            --success: #10b981;
+            --warning: #f59e0b;
+            --field-bg: rgba(255, 255, 255, 0.06);
+            --btn-control-bg: rgba(255, 255, 255, 0.08);
+        }
+
+        :root[data-theme="light"] {
+            --primary-red: #e61e32;
+            --main-bg: #f4f6fb;
+            --card-surface: rgba(255, 255, 255, 0.96);
+            --border-subtle: rgba(0, 0, 0, 0.08);
+            --text-primary: #121826;
+            --text-dim: #64748b;
+            --success: #10b981;
+            --warning: #f59e0b;
+            --field-bg: #ebf0f7;
+            --btn-control-bg: rgba(0, 0, 0, 0.06);
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            -webkit-tap-highlight-color: transparent;
+            transition: background-color 0.25s ease, color 0.2s ease, border-color 0.2s ease;
+        }
+
+        body {
+            background-color: var(--main-bg);
+            color: var(--text-primary);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            position: relative;
+            overflow-x: hidden;
+        }
+
+        h1, h2, .brand-title, .status-pill, .btn-action {
+            font-family: 'Bruno Ace SC', cursive, sans-serif;
+            letter-spacing: 0.5px;
+        }
+
+        #stageCanvas {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            z-index: 0;
+            pointer-events: none;
+        }
+
+        .hidden { display: none !important; }
+
+        /* AUTH SCREEN */
+        .auth-wrapper {
+            position: relative;
+            z-index: 2;
+            flex: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
+        .auth-card {
+            background: var(--card-surface);
+            border: 1px solid var(--border-subtle);
+            border-radius: 32px;
+            width: 100%;
+            max-width: 390px;
+            padding: 40px 26px;
+            text-align: center;
+            box-shadow: 0 20px 50px rgba(0, 0, 0, 0.35);
+            backdrop-filter: blur(20px);
+        }
+
+        .officer-badge-icon {
+            width: 72px;
+            height: 72px;
+            border-radius: 50%;
+            background: var(--primary-red);
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 32px;
+            margin-bottom: 20px;
+            box-shadow: 0 8px 24px rgba(230, 30, 50, 0.4);
+            color: #ffffff;
+        }
+
+        .input-box {
+            background: var(--field-bg);
+            border: 1px solid var(--border-subtle);
+            border-radius: 50px;
+            padding: 13px 20px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 14px;
+        }
+
+        .input-box input {
+            background: transparent;
+            border: none;
+            outline: none;
+            color: var(--text-primary);
+            width: 100%;
+            font-size: 14px;
+        }
+
+        .btn-action {
+            width: 100%;
+            background: var(--primary-red);
+            border: none;
+            border-radius: 50px;
+            padding: 14px;
+            color: #ffffff;
+            font-size: 13px;
+            cursor: pointer;
+            margin-top: 10px;
+            box-shadow: 0 8px 20px rgba(230, 30, 50, 0.4);
+        }
+
+        .btn-action:active { transform: scale(0.98); }
+
+        /* WORKSPACE */
+        .workspace-wrap {
+            position: relative;
+            z-index: 2;
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .top-navbar {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 14px 20px;
+            background: var(--card-surface);
+            border-bottom: 1px solid var(--border-subtle);
+            backdrop-filter: blur(20px);
+        }
+
+        .status-pill {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 11px;
+            background: rgba(16, 185, 129, 0.12);
+            color: var(--success);
+            padding: 6px 14px;
+            border-radius: 30px;
+            border: 1px solid rgba(16, 185, 129, 0.3);
+        }
+
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: var(--success);
+            box-shadow: 0 0 8px var(--success);
+        }
+
+        .nav-right-group {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .theme-btn {
+            width: 38px;
+            height: 38px;
+            border-radius: 50%;
+            background: var(--btn-control-bg);
+            border: 1px solid var(--border-subtle);
+            color: var(--text-primary);
+            font-size: 16px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+        }
+
+        .logout-link {
+            background: transparent;
+            border: 1px solid var(--primary-red);
+            color: var(--primary-red);
+            font-size: 11px;
+            font-weight: 700;
+            padding: 7px 14px;
+            border-radius: 20px;
+            cursor: pointer;
+        }
+
+        .viewport-scanner {
+            flex: 1;
+            padding: 14px;
+            display: flex;
+            flex-direction: column;
+            gap: 14px;
+            max-width: 580px;
+            margin: 0 auto;
+            width: 100%;
+        }
+
+        /* CAMERA CARD & OVERLAY */
+        .camera-card {
+            background: var(--card-surface);
+            border: 1px solid var(--border-subtle);
+            border-radius: 24px;
+            overflow: hidden;
+            position: relative;
+            box-shadow: 0 12px 30px rgba(0, 0, 0, 0.15);
+            backdrop-filter: blur(20px);
+        }
+
+        #reader {
+            width: 100% !important;
+            min-height: 250px;
+            border: none !important;
+        }
+
+        #reader video {
+            border-radius: 20px;
+            object-fit: cover;
+            width: 100% !important;
+        }
+
+        .camera-overlay-state {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.82);
+            display: none;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            color: #ffffff;
+            z-index: 10;
+            backdrop-filter: blur(6px);
+            cursor: pointer;
+        }
+
+        .camera-overlay-state.active { display: flex; }
+
+        .cam-controls-bar {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 12px;
+            padding: 12px 14px;
+            background: var(--card-surface);
+            border-top: 1px solid var(--border-subtle);
+        }
+
+        .ctrl-pill-btn {
+            background: var(--btn-control-bg);
+            border: 1px solid var(--border-subtle);
+            color: var(--text-primary);
+            padding: 9px 18px;
+            border-radius: 30px;
+            font-size: 12px;
+            font-weight: 600;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .ctrl-pill-btn:hover {
+            border-color: var(--primary-red);
+            color: var(--primary-red);
+        }
+
+        /* HARDWARE SCANNER INPUT (GUN) */
+        .hardware-gun-wrap {
+            position: relative;
+        }
+
+        .hardware-gun-wrap input {
+            width: 100%;
+            background: var(--field-bg);
+            border: 1px solid var(--border-subtle);
+            border-radius: 16px;
+            padding: 12px 18px;
+            color: var(--text-primary);
+            font-size: 14px;
+            outline: none;
+            text-align: center;
+            letter-spacing: 1px;
+        }
+
+        .hardware-gun-wrap input:focus {
+            border-color: var(--primary-red);
+        }
+
+        /* RESULT NOTIFICATION CARD */
+        .result-card {
+            background: var(--card-surface);
+            border: 2px solid var(--border-subtle);
+            border-radius: 22px;
+            padding: 18px;
+            text-align: center;
+            backdrop-filter: blur(20px);
+            transition: all 0.25s ease;
+        }
+
+        .result-card.success-border {
+            border-color: var(--success);
+            box-shadow: 0 0 20px rgba(16, 185, 129, 0.25);
+        }
+
+        .result-card.warning-border {
+            border-color: var(--warning);
+            box-shadow: 0 0 20px rgba(245, 158, 11, 0.25);
+        }
+
+        .result-card.danger-border {
+            border-color: var(--primary-red);
+            box-shadow: 0 0 20px rgba(230, 30, 50, 0.35);
+        }
+
+        .candidate-name {
+            font-size: 18px;
+            font-weight: 700;
+            margin-top: 4px;
+        }
+
+        .candidate-meta {
+            font-size: 13px;
+            color: var(--text-dim);
+            margin: 4px 0 10px;
+        }
+
+        .time-badge {
+            display: inline-block;
+            background: var(--field-bg);
+            padding: 6px 14px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+
+        .count-tracker {
+            text-align: center;
+            font-size: 12px;
+            color: var(--text-dim);
+            margin-top: auto;
+            padding: 8px 0 16px;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- BACKGROUND ANIMATED CANVAS -->
+    <canvas id="stageCanvas"></canvas>
+
+    <!-- 1. OFFICER AUTHENTICATION -->
+    <div id="officerAuthScreen" class="auth-wrapper">
+        <div class="auth-card">
+            <div class="officer-badge-icon">👮</div>
+            <h1 style="font-size: 18px; margin-bottom: 6px;">TERMINAL LOGIN</h1>
+            <p style="font-size: 12px; color: var(--text-dim); margin-bottom: 24px;">Enter Officer credentials set by Admin</p>
+
+            <div class="input-box">
+                <span>👤</span>
+                <input type="text" id="officerUserInput" placeholder="Terminal User">
+            </div>
+            <div class="input-box">
+                <span>🔑</span>
+                <input type="password" id="officerPassInput" placeholder="Terminal Password">
+            </div>
+
+            <button type="button" class="btn-action" id="officerLoginBtn" onclick="handleTerminalLogin()">
+                OPEN SCANNER
+            </button>
+            <p id="officerLoginMsg" style="font-size: 12px; margin-top: 14px; color: var(--primary-red);"></p>
+        </div>
+    </div>
+
+    <!-- 2. SCANNER WORKSPACE -->
+    <div id="officerWorkspace" class="workspace-wrap hidden">
+        <header class="top-navbar">
+            <div class="status-pill">
+                <span class="status-dot"></span>
+                <span id="scannerStatusText">SCANNER ACTIVE</span>
+            </div>
+
+            <div class="nav-right-group">
+                <button type="button" class="theme-btn" onclick="toggleTheme()" title="Switch Theme">
+                    <span id="themeIcon">☀️</span>
+                </button>
+                <button type="button" class="logout-link" onclick="handleTerminalLogout()">LOGOUT ✕</button>
+            </div>
+        </header>
+
+        <main class="viewport-scanner">
+            <div class="camera-card">
+                <div id="reader"></div>
+
+                <!-- OVERLAY WHEN CAMERA IS PAUSED (Click anywhere on overlay to resume) -->
+                <div id="cameraPausedOverlay" class="camera-overlay-state" onclick="toggleCameraPause()">
+                    <span style="font-size: 42px; margin-bottom: 10px;">▶️</span>
+                    <p style="font-weight: 700; font-size: 15px;">Camera Paused</p>
+                    <p style="font-size: 12px; color: #cbd5e1; margin-top: 4px;">Tap anywhere to resume scanning</p>
+                </div>
+
+                <div class="cam-controls-bar">
+                    <button type="button" class="ctrl-pill-btn" id="btnCamPause" onclick="toggleCameraPause()">
+                        <span id="pauseBtnIcon">⏸️</span>
+                        <span id="pauseBtnText">Pause Camera</span>
+                    </button>
+
+                    <button type="button" class="ctrl-pill-btn" id="btnCamSwitch" onclick="switchCameraFacingMode()">
+                        <span>🔄</span>
+                        <span>Flip Camera</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- HARDWARE SCANNER INPUT -->
+            <div class="hardware-gun-wrap">
+                <input type="text" id="barcodeGunInput" placeholder="Ready for Barcode Gun / Manual Enter..." autocomplete="off">
+            </div>
+
+            <!-- RESULT CARD -->
+            <div id="resultCard" class="result-card">
+                <p id="resStatus" style="font-size: 12px; font-weight: 700; color: var(--text-dim);">AWAITING BARCODE SCAN...</p>
+                <h3 id="resName" class="candidate-name">- - -</h3>
+                <p id="resMeta" class="candidate-meta">Roll: - | Class: -</p>
+                <span id="resTime" class="time-badge">Waiting</span>
+            </div>
+
+            <div class="count-tracker">
+                Today's Verified Count: <strong id="todayVerifiedCount" style="color:var(--text-primary); font-size:14px;">0</strong>
+            </div>
+        </main>
+    </div>
+
+    <script>
+        /* ================= 1. LIGHTWEIGHT CANVAS ANIMATION ================= */
+        (function setupAnimatedBackground() {
+            const canvas = document.getElementById("stageCanvas");
+            if (!canvas) return;
+            const ctx = canvas.getContext("2d");
+            let nodes = [];
+            const nodeCount = 35;
+
+            function resizeCanvas() {
+                canvas.width = window.innerWidth;
+                canvas.height = window.innerHeight;
+            }
+            window.addEventListener("resize", resizeCanvas);
+            resizeCanvas();
+
+            for (let i = 0; i < nodeCount; i++) {
+                nodes.push({
+                    x: Math.random() * canvas.width,
+                    y: Math.random() * canvas.height,
+                    vx: (Math.random() - 0.5) * 0.4,
+                    vy: (Math.random() - 0.5) * 0.4,
+                    radius: Math.random() * 2 + 1
+                });
+            }
+
+            function renderStage() {
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                const isDark = document.documentElement.getAttribute("data-theme") === "dark";
+                const dotColor = isDark ? "rgba(230, 30, 50, 0.45)" : "rgba(230, 30, 50, 0.70)";
+                const lineColor = isDark ? "rgba(255, 255, 255, 0.05)" : "rgba(0, 0, 0, 0.06)";
+
+                nodes.forEach((n, i) => {
+                    n.x += n.vx;
+                    n.y += n.vy;
+                    if (n.x < 0 || n.x > canvas.width) n.vx *= -1;
+                    if (n.y < 0 || n.y > canvas.height) n.vy *= -1;
+
+                    ctx.beginPath();
+                    ctx.arc(n.x, n.y, n.radius, 0, Math.PI * 2);
+                    ctx.fillStyle = dotColor;
+                    ctx.fill();
+
+                    for (let j = i + 1; j < nodes.length; j++) {
+                        const n2 = nodes[j];
+                        const dist = Math.hypot(n.x - n2.x, n.y - n2.y);
+                        if (dist < 120) {
+                            ctx.beginPath();
+                            ctx.moveTo(n.x, n.y);
+                            ctx.lineTo(n2.x, n2.y);
+                            ctx.strokeStyle = lineColor;
+                            ctx.stroke();
+                        }
+                    }
+                });
+                requestAnimationFrame(renderStage);
+            }
+            renderStage();
+        })();
+
+        /* ================= 2. THEME SWITCHER ================= */
+        function toggleTheme() {
+            const html = document.documentElement;
+            const current = html.getAttribute("data-theme") || "dark";
+            const next = current === "dark" ? "light" : "dark";
+            html.setAttribute("data-theme", next);
+
+            const icon = document.getElementById("themeIcon");
+            if (icon) icon.textContent = next === "dark" ? "☀️" : "🌙";
+        }
+
+        /* ================= 3. STATE & HELPERS ================= */
+        let html5QrCode = null;
+        let isProcessing = false;
+        let todayScannedCount = 0;
+        let isCameraPaused = false;
+        let currentFacingMode = "environment"; // 'environment' (back) or 'user' (front)
+
+        // SAFE QR VALIDATOR (Blocks URLs, UPI, Mail, Phone)
+        function isValidCandidateCode(code) {
+            if (!code || typeof code !== "string") return false;
+            const trimmed = code.trim();
+            if (trimmed.length < 2 || trimmed.length > 50) return false;
+
+            const lower = trimmed.toLowerCase();
+            if (
+                lower.startsWith("http://") || 
+                lower.startsWith("https://") || 
+                lower.startsWith("upi://") || 
+                lower.startsWith("mailto:") || 
+                lower.startsWith("tel:")
+            ) {
+                return false;
+            }
+            return true;
+        }
+
+        function playBeep(type = "success") {
+            try {
+                const ctx = new (window.AudioContext || window.webkitAudioContext)();
+                const osc = ctx.createOscillator();
+                const gain = ctx.createGain();
+                osc.connect(gain);
+                gain.connect(ctx.destination);
+
+                if (type === "success") {
+                    osc.frequency.setValueAtTime(1046.50, ctx.currentTime);
+                    gain.gain.setValueAtTime(0.3, ctx.currentTime);
+                    osc.start();
+                    osc.stop(ctx.currentTime + 0.12);
+                } else if (type === "warning") {
+                    osc.frequency.setValueAtTime(550, ctx.currentTime);
+                    gain.gain.setValueAtTime(0.3, ctx.currentTime);
+                    osc.start();
+                    osc.stop(ctx.currentTime + 0.25);
+                } else {
+                    osc.frequency.setValueAtTime(220, ctx.currentTime);
+                    gain.gain.setValueAtTime(0.4, ctx.currentTime);
+                    osc.start();
+                    osc.stop(ctx.currentTime + 0.3);
+                }
+            } catch (e) {
+                console.log("Audio awaiting gesture:", e);
+            }
+        }
+
+        function triggerVibration(pattern = [100]) {
+            if ("vibrate" in navigator) navigator.vibrate(pattern);
+        }
+
+        function getTodayDate() {
+            const d = new Date();
+            return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+        }
+
+        function getCurrentTime() {
+            return new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+        }
+
+        /* ================= 4. AUTHENTICATION ================= */
+        window.addEventListener("DOMContentLoaded", () => {
+            if (sessionStorage.getItem("officerLoggedIn") === "true") {
+                showWorkspace();
+            }
+
+            // Virtual keyboard protection: Auto focus only on desktop non-touch devices
+            const isTouchDevice = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+            const gunInput = document.getElementById("barcodeGunInput");
+            if (gunInput) {
+                if (!isTouchDevice && window.innerWidth >= 992) {
+                    gunInput.focus();
+                }
+
+                gunInput.addEventListener("keypress", (e) => {
+                    if (e.key === "Enter") {
+                        const code = gunInput.value.trim();
+                        if (code) {
+                            processBarcodeScan(code);
+                            gunInput.value = "";
+                        }
+                    }
+                });
+            }
+        });
+
+        async function handleTerminalLogin() {
+            const user = document.getElementById("officerUserInput").value.trim();
+            const pass = document.getElementById("officerPassInput").value.trim();
+            const msg = document.getElementById("officerLoginMsg");
+            const btn = document.getElementById("officerLoginBtn");
+
+            if (!user || !pass) {
+                msg.textContent = "Please fill in terminal credentials.";
+                return;
+            }
+
+            try {
+                btn.disabled = true;
+                btn.textContent = "VERIFYING...";
+                msg.textContent = "";
+
+                const snap = await window.fs.getDoc(window.fs.doc(window.firebaseDB, "config", "officerAuth"));
+                
+                if (snap.exists()) {
+                    const data = snap.data();
+                    if (data.username === user && data.password === pass) {
+                        sessionStorage.setItem("officerLoggedIn", "true");
+                        showWorkspace();
+                    } else {
+                        msg.textContent = "Invalid terminal credentials!";
+                    }
+                } else {
+                    msg.textContent = "Officer Key not yet configured by Admin in Dashboard!";
+                }
+            } catch (err) {
+                msg.textContent = "Network error: " + err.message;
+            } finally {
+                btn.disabled = false;
+                btn.textContent = "OPEN SCANNER";
+            }
+        }
+
+        function showWorkspace() {
+            document.getElementById("officerAuthScreen").classList.add("hidden");
+            document.getElementById("officerWorkspace").classList.remove("hidden");
+            startCamera();
+        }
+
+        function handleTerminalLogout() {
+            sessionStorage.removeItem("officerLoggedIn");
+            if (html5QrCode) {
+                html5QrCode.stop().catch(() => {}).then(() => location.reload());
+            } else {
+                location.reload();
+            }
+        }
+
+        /* ================= 5. CAMERA ENGINE & INSTANT FREEZE PAUSE/RESUME ================= */
+        async function startCamera() {
+            try {
+                if (html5QrCode) {
+                    await html5QrCode.stop().catch(() => {});
+                    html5QrCode = null;
+                }
+                document.getElementById("reader").innerHTML = "";
+                html5QrCode = new Html5Qrcode("reader");
+
+                const config = { 
+                    fps: 15, 
+                    qrbox: { width: 280, height: 180 },
+                    aspectRatio: 1.333334
+                };
+
+                await html5QrCode.start(
+                    { facingMode: currentFacingMode },
+                    config,
+                    (decodedText) => {
+                        // Scan loop pauses instantly when isCameraPaused is true
+                        if (!isCameraPaused) {
+                            processBarcodeScan(decodedText);
+                        }
+                    },
+                    () => {}
+                );
+
+                isCameraPaused = false;
+                document.getElementById("cameraPausedOverlay").classList.remove("active");
+                document.getElementById("pauseBtnText").textContent = "Pause Camera";
+                document.getElementById("pauseBtnIcon").textContent = "⏸️";
+                document.getElementById("scannerStatusText").textContent = "SCANNER ACTIVE";
+            } catch (err) {
+                console.warn("Camera start warning:", err);
+                // Fallback attempt
+                try {
+                    document.getElementById("reader").innerHTML = "";
+                    html5QrCode = new Html5Qrcode("reader");
+                    await html5QrCode.start(
+                        { facingMode: "user" }, 
+                        { fps: 15 }, 
+                        (t) => { if (!isCameraPaused) processBarcodeScan(t); }, 
+                        () => {}
+                    );
+                    isCameraPaused = false;
+                } catch (e2) {
+                    document.getElementById("resStatus").textContent = "Camera access denied or error.";
+                }
+            }
+        }
+
+        // INSTANT PAUSE & RESUME (FREEZES/UNFREEZES VIDEO STREAM INSTANTLY)
+        function toggleCameraPause() {
+            const video = document.querySelector("#reader video");
+            const overlay = document.getElementById("cameraPausedOverlay");
+            const btnText = document.getElementById("pauseBtnText");
+            const btnIcon = document.getElementById("pauseBtnIcon");
+            const statusText = document.getElementById("scannerStatusText");
+
+            if (!isCameraPaused) {
+                // PAUSE
+                isCameraPaused = true;
+                if (video) video.pause();
+                if (overlay) overlay.classList.add("active");
+                if (btnText) btnText.textContent = "Resume Camera";
+                if (btnIcon) btnIcon.textContent = "▶️";
+                if (statusText) statusText.textContent = "CAMERA PAUSED";
+            } else {
+                // RESUME
+                isCameraPaused = false;
+                if (video) video.play().catch(e => console.warn("Video resume warning:", e));
+                if (overlay) overlay.classList.remove("active");
+                if (btnText) btnText.textContent = "Pause Camera";
+                if (btnIcon) btnIcon.textContent = "⏸️";
+                if (statusText) statusText.textContent = "SCANNER ACTIVE";
+            }
+        }
+
+        // FLIP CAMERA (BACK / FRONT SWITCH)
+        async function switchCameraFacingMode() {
+            try {
+                if (html5QrCode) {
+                    await html5QrCode.stop().catch(() => {});
+                    html5QrCode = null;
+                }
+                document.getElementById("reader").innerHTML = "";
+                currentFacingMode = (currentFacingMode === "environment") ? "user" : "environment";
+                await startCamera();
+            } catch (err) {
+                console.error("Camera flip error:", err);
+            }
+        }
+
+        /* ================= 6. BARCODE SYNC ================= */
+        async function processBarcodeScan(barcode) {
+            if (isProcessing) return;
+
+            const cleanCode = String(barcode).trim();
+            const card = document.getElementById("resultCard");
+            const resStatus = document.getElementById("resStatus");
+            const resName = document.getElementById("resName");
+            const resMeta = document.getElementById("resMeta");
+            const resTime = document.getElementById("resTime");
+
+            if (!isValidCandidateCode(cleanCode)) {
+                isProcessing = true;
+                playBeep("error");
+                triggerVibration([80, 50, 80]);
+
+                card.className = "result-card danger-border";
+                resStatus.style.color = "var(--primary-red)";
+                resStatus.textContent = "❌ REJECTED FORMAT";
+                resName.textContent = "Invalid QR / URL";
+                resMeta.textContent = "Random URL or payment codes are blocked";
+                resTime.textContent = "Ignored";
+
+                setTimeout(() => { isProcessing = false; }, 1000);
+                return;
+            }
+
+            isProcessing = true;
+            const today = getTodayDate();
+            const timeNow = getCurrentTime();
+            const attendanceDocId = `${today}_${cleanCode}`;
+
+            try {
+                // Duplicate check
+                const attRef = window.fs.doc(window.firebaseDB, "attendance", attendanceDocId);
+                const attSnap = await window.fs.getDoc(attRef);
+
+                if (attSnap.exists()) {
+                    const existing = attSnap.data();
+                    playBeep("warning");
+                    triggerVibration([150, 80, 150]);
+
+                    card.className = "result-card warning-border";
+                    resStatus.style.color = "var(--warning)";
+                    resStatus.textContent = "⚠️ ALREADY SCANNED TODAY";
+                    resName.textContent = existing.name || cleanCode;
+                    resMeta.textContent = `Roll: ${existing.roll || "-"} | Class: ${existing.class || "-"}`;
+                    resTime.textContent = `Scanned at: ${existing.time}`;
+
+                    setTimeout(() => { isProcessing = false; }, 1400);
+                    return;
+                }
+
+                // Query Student Info
+                let studentData = {
+                    name: "Candidate " + cleanCode,
+                    roll: "-",
+                    class: "-",
+                    phone: ""
+                };
+
+                try {
+                    const q = window.fs.query(
+                        window.fs.collection(window.firebaseDB, "students"),
+                        window.fs.where("barcode", "==", cleanCode)
+                    );
+                    const querySnap = await window.fs.getDocs(q);
+
+                    if (!querySnap.empty) {
+                        const found = querySnap.docs[0].data();
+                        studentData.name = found.name || studentData.name;
+                        studentData.roll = found.roll || "-";
+                        studentData.class = found.class || "-";
+                        studentData.phone = found.phone || "";
+                    }
+                } catch (readErr) {
+                    console.log("Direct query bypass:", readErr);
+                }
+
+                // Write Attendance
+                const payload = {
+                    barcode: cleanCode,
+                    name: studentData.name,
+                    roll: studentData.roll,
+                    class: studentData.class,
+                    phone: studentData.phone,
+                    date: today,
+                    time: timeNow,
+                    status: "Present"
+                };
+
+                await window.fs.setDoc(attRef, payload);
+
+                playBeep("success");
+                triggerVibration([100]);
+                todayScannedCount++;
+                document.getElementById("todayVerifiedCount").textContent = todayScannedCount;
+
+                card.className = "result-card success-border";
+                resStatus.style.color = "var(--success)";
+                resStatus.textContent = "✓ VERIFIED SUCCESSFULLY";
+                resName.textContent = studentData.name;
+                resMeta.textContent = `Roll: ${studentData.roll} | Class: ${studentData.class}`;
+                resTime.textContent = `Marked at: ${timeNow}`;
+
+            } catch (err) {
+                console.error("Scan processing error:", err);
+                card.className = "result-card danger-border";
+                resStatus.style.color = "var(--primary-red)";
+                resStatus.textContent = "ERROR: " + err.message;
+            } finally {
+                setTimeout(() => { isProcessing = false; }, 1200);
+            }
+        }
+    </script>
+</body>
+</html>
